@@ -113,7 +113,7 @@ def prepare_decoder_attention_mask(attention_mask, input_shape, inputs_embeds, p
 def batch_subgraph_graph_level(edge_index,
                                node_ids,
                                num_nodes,
-                               graph_size=20,
+                               graph_size=35,
                                ):
 
     subset_list, edge_index_sub_list, mapping_list, batch_list = [], [], [], []
@@ -123,6 +123,9 @@ def batch_subgraph_graph_level(edge_index,
     batch_id = 0
 
     for node_idx in node_ids:
+
+        node_idx = node_idx // graph_size
+        node_idx = node_idx * graph_size
 
         subset = torch.arange(node_idx, node_idx+graph_size).to(node_idx.device)
         node_mask = index_to_mask(subset, size=num_nodes)

@@ -139,7 +139,7 @@ torch-sparse==0.6.17+pt20cu118
 torch-spline-conv==1.2.2+pt20cu118
 torch==2.0.1
 torchmetrics==1.0.0
-torchvision==0.13.1a0
+torchvision
 tornado==6.2
 tqdm==4.65.0
 traitlets==5.7.1

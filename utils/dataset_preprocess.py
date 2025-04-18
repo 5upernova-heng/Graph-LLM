@@ -57,6 +57,20 @@ def preprocess_function_original_bgm(tokenizer, max_length=512):
     return preprocess_function
 
 
+def preprocess_function_original_net(tokenizer, max_length=512):
+    def preprocess_function(examples):
+        desc = [f"{d}" for d in examples['config_desc']]
+        desc_ids = tokenizer(desc,
+                             add_special_tokens=True,
+                             truncation=True,
+                             max_length=max_length,
+                             padding='max_length',
+                             return_tensors='pt', )
+        return desc_ids
+
+    return preprocess_function
+
+
 def preprocess_function_generator_mts(tokenizer, ignore_index=-100, max_length=32):
     def preprocess_function(examples):
         prompts = [f"What is the maximum sum of age of a triplet composed of person {name}, " \
@@ -236,6 +250,53 @@ def preprocess_function_generator_bgm(tokenizer, ignore_index=-100, max_length=3
     return preprocess_function
 
 
+def preprocess_function_generator_net(tokenizer, ignore_index=-100, max_length=32):
+    def preprocess_function(examples):
+        
+        query_list = examples['query']
+        prompts = query_list
+        
+
+        completion = [f"{l}" for l in examples['labels']]
+        instruction = f"\n\n###\n\n"
+        instruction = tokenizer.encode(instruction, add_special_tokens=False)
+        model_inputs = tokenizer(prompts, add_special_tokens=False)
+        labels = tokenizer(completion, add_special_tokens=False)
+
+        batch_size = len(examples['node_ids'])
+        net_ids = []
+
+        for i in range(batch_size):
+            # Add bos & eos token
+            sample_input_ids = [tokenizer.bos_token_id] + model_inputs["input_ids"][i]
+            label_input_ids = labels["input_ids"][i] + [tokenizer.eos_token_id]
+
+            p_max_length = max_length - len(label_input_ids) - len(instruction)
+            assert(p_max_length > 0)
+            sample_input_ids = sample_input_ids[:p_max_length] + instruction
+
+            model_inputs["input_ids"][i] = sample_input_ids + label_input_ids
+            labels["input_ids"][i] = [ignore_index] * len(sample_input_ids) + label_input_ids
+            model_inputs["attention_mask"][i] = [1] * len(model_inputs["input_ids"][i])
+
+        for i in range(batch_size):
+            sample_input_ids = model_inputs["input_ids"][i]
+            label_input_ids = labels["input_ids"][i]
+            model_inputs["input_ids"][i] = [tokenizer.pad_token_id] * ( max_length - len(sample_input_ids)) + sample_input_ids
+            model_inputs["attention_mask"][i] = [0] * (max_length - len(sample_input_ids)) + model_inputs[
+                "attention_mask"][i]
+            labels["input_ids"][i] = [ignore_index] * (max_length - len(sample_input_ids)) + label_input_ids
+
+            model_inputs["input_ids"][i] = torch.tensor(model_inputs["input_ids"][i])
+            model_inputs["attention_mask"][i] = torch.tensor(model_inputs["attention_mask"][i])
+            labels["input_ids"][i] = torch.tensor(labels["input_ids"][i])
+            net_ids.append(torch.tensor(int(examples['net_ids'][i])))
+
+        model_inputs["labels"] = labels["input_ids"]
+        return {**model_inputs, "net_ids": net_ids}
+
+    return preprocess_function
+
 def preprocess_test_function_generator_sp(tokenizer, max_length=32):
     def preprocess_function(examples):
         prompts = [f"Starting from wormhole #1, how much dark matter do you need at " \
@@ -358,5 +419,34 @@ def preprocess_test_function_generator_sc(tokenizer, max_length=32):
     return preprocess_function
 
 
+def preprocess_test_function_generator_net(tokenizer, max_length=32):
+    def preprocess_function(examples):
+        
+        prompts = examples['query']
+        
+        model_inputs = tokenizer(prompts, add_special_tokens=False)
 
+        instruction = f"\n\n###\n\n"
+        instruction = tokenizer.encode(instruction, add_special_tokens=False)
 
+        batch_size = len(examples['node_ids'])
+        net_ids = []
+
+        for i in range(batch_size):
+            sample_input_ids = [tokenizer.bos_token_id] + model_inputs["input_ids"][i][
+                                                          :max_length - len(instruction) - 1] + instruction
+
+            model_inputs["input_ids"][i] = [tokenizer.pad_token_id] * (
+                    max_length - len(sample_input_ids)
+            ) + sample_input_ids
+
+            model_inputs["attention_mask"][i] = [0] * (max_length - len(sample_input_ids)) + [1] * len(
+                sample_input_ids)
+            model_inputs["input_ids"][i] = torch.tensor(model_inputs["input_ids"][i])
+            model_inputs["attention_mask"][i] = torch.tensor(model_inputs["attention_mask"][i])
+            net_ids.append(torch.tensor(int(examples['net_ids'][i])))
+
+        model_inputs['text_label'] = [f'{l}' for l in examples['labels']]
+        return {**model_inputs, "net_ids": net_ids}
+
+    return preprocess_function

@@ -5,7 +5,7 @@ import transformers
 import torch
 import os
 import copy
-import wandb
+import time
 import gc
 from tqdm import tqdm
 from pathlib import Path
@@ -24,6 +24,7 @@ from accelerate.utils import InitProcessGroupKwargs
 torch.backends.cuda.enable_mem_efficient_sdp(True)
 torch.backends.cuda.enable_flash_sdp(True)
 
+os.environ['WANDB_DISABLED'] = 'true'
 
 def main(args, SEED):
     group = f"{args.dataset}"
@@ -45,7 +46,7 @@ def main(args, SEED):
         tokenizer.pad_token_id = 0
         tokenizer.padding_side = 'left'
 
-        dataset, split, edge_index = load_dataset[args.dataset]()
+        dataset, split, edge_index = load_dataset[args.dataset](args.dataset_path)
 
         original_dataset = dataset.map(
             preprocess_original_dataset[args.dataset](tokenizer=tokenizer, max_length=original_len[args.dataset]),
@@ -54,7 +55,7 @@ def main(args, SEED):
             remove_columns=[i for i in dataset.column_names if i not in ['node_ids']],
             keep_in_memory=True,
             writer_batch_size=10000,
-            num_proc=1,
+            num_proc=16,
         ).with_format("torch")
 
         clm_dataset_train = dataset.map(
@@ -64,7 +65,7 @@ def main(args, SEED):
             remove_columns=[i for i in dataset.column_names if i not in ['node_ids']],
             keep_in_memory=True,
             writer_batch_size=10000,
-            num_proc=1,
+            num_proc=16,
         ).with_format("torch")
 
 
@@ -75,7 +76,7 @@ def main(args, SEED):
             remove_columns=[i for i in dataset.column_names if i not in ['node_ids', 'label', 'text_label']],
             keep_in_memory=True,
             writer_batch_size=10000,
-            num_proc=1,
+            num_proc=16,
         ).with_format("torch")
 
 
@@ -87,7 +88,7 @@ def main(args, SEED):
     train_dataset = clm_dataset_train.select(split['train'])
     val_dataset = clm_dataset_train.select(split['valid'])
     val_dataset_eval = clm_dataset_test.select(split['valid'])
-    test_dataset = clm_dataset_test.select(split['test'])
+    test_dataset = clm_dataset_train.select(split['test'])
 
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, drop_last=True,
@@ -273,61 +274,33 @@ def main(args, SEED):
         accelerator.print(f'Epoch {epoch} Val Acc {val_acc} Best Val Acc {best_val_acc} Best Epoch {best_epoch}')
         accelerator.log({'val acc': val_acc})
 
+    torch.save(model, args.save_path)
     accelerator.wait_for_everyone()
     gc.collect()
     torch.cuda.empty_cache()
-    torch.cuda.reset_max_memory_allocated()
     accelerator.wait_for_everyone()
-
 
     # Step 5. Evaluating
 
 
-    model, test_loader = accelerator.prepare(best_model, test_loader)
+    test_loader = accelerator.prepare(model, test_loader)
 
-    samples_seen = 0
-    eval_output = []
     model.eval()
+    val_loss = 0.
+    total_acc = 0
 
     progress_bar_test = tqdm(range(len(test_loader)))
 
-    for step, batch in enumerate(test_loader):
-        with torch.no_grad():
-            kwargs = {}
-            kwargs.update(
-                {"node_ids": batch['node_ids'], "input_ids": batch['input_ids'],
-                 "attention_mask": batch['attention_mask'], "max_new_tokens": 15})
+    with torch.no_grad():
+        for step, batch in enumerate(test_loader):
+            loss, temp_acc = model(**batch)
+            val_loss += loss.item()
+            total_acc += temp_acc
+            progress_bar_test.update()
+            
+        accelerator.print(f"Test Loss: {val_loss / len(test_loader)}")
+        accelerator.print(f"Test Acc: {total_acc / len(test_loader)}")
 
-            generated_tokens = accelerator.unwrap_model(model).generate(**kwargs)
-            generated_tokens_gathered = accelerator.gather(generated_tokens).cpu().numpy()
-
-            if accelerator.num_processes > 1:
-                if step == len(test_loader) - 1:
-                    generated_tokens_gathered = generated_tokens_gathered[: len(test_loader.dataset) - samples_seen]
-                else:
-                    samples_seen += len(generated_tokens_gathered)
-
-            eval_output.append(generated_tokens_gathered)
-
-        progress_bar_test.update(1)
-
-    # Step 6. Post-processing & Evaluating
-    if accelerator.is_local_main_process:
-        eval_decode_output = []
-        for batch_output in eval_output:
-            eval_decode_output.extend(tokenizer.batch_decode(batch_output, skip_special_tokens=False))
-
-        eval_pred = [item.split('</s>')[0] for item in eval_decode_output]
-        eval_pred = [item.split('\n\n###\n\n ')[-1] for item in eval_pred]
-
-        eval_label = test_loader.dataset['text_label']
-        pred = [_ == f"{eval_label[i]}" for i, _ in enumerate(eval_pred)]
-
-
-        acc = sum(pred) / len(pred)
-
-        accelerator.print(f'Test Acc {acc}')
-        accelerator.log({'Test Acc': acc})
 
 
 if __name__ == "__main__":

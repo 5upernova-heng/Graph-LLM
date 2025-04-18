@@ -3,7 +3,7 @@ import argparse
 
 module_path = path.dirname(path.abspath(__file__))
 
-from utils.dataset import load_textual_mts, load_textual_sc, load_textual_bgm, load_textual_sp
+from utils.dataset import load_textual_mts, load_textual_sc, load_textual_bgm, load_textual_sp, load_textual_net
 from utils.dataset_preprocess import *
 
 
@@ -12,6 +12,7 @@ load_dataset = {
     'mts': load_textual_mts,
     'sp': load_textual_sp,
     'bgm': load_textual_bgm,
+    'net': load_textual_net,
 }
 
 
@@ -20,6 +21,7 @@ preprocess_original_dataset = {
     'mts': preprocess_function_original_mts,
     'sp': preprocess_function_original_sp,
     'bgm': preprocess_function_original_bgm,
+    'net': preprocess_function_original_net,
 }
 
 
@@ -28,6 +30,7 @@ preprocess_train_dataset = {
     'mts': preprocess_function_generator_mts,
     'sp': preprocess_function_generator_sp,
     'bgm': preprocess_function_generator_bgm,
+    'net': preprocess_function_generator_net,
 }
 
 preprocess_test_dataset = {
@@ -35,6 +38,7 @@ preprocess_test_dataset = {
     'mts': preprocess_test_function_generator_mts,
     'sp': preprocess_test_function_generator_sp,
     'bgm': preprocess_test_function_generator_bgm,
+    'net': preprocess_test_function_generator_net,
 }
 
 instruction_len = {
@@ -42,6 +46,7 @@ instruction_len = {
     'sc': 45,
     'bgm': 35,
     'mts': 50,
+    'net': 512,
 }
 
 original_len = {
@@ -49,6 +54,7 @@ original_len = {
     'sc': 60,
     'bgm': 60,
     'mts': 90,
+    'net': 512,
 }
 
 task_level = {
@@ -56,6 +62,7 @@ task_level = {
     'sc': 'node',
     'bgm': 'graph',
     'mts': 'node',
+    'net': 'graph',
 }
 
 
@@ -97,6 +104,10 @@ def parse_args_llama():
 
     # Inference
     parser.add_argument("--eval_batch_size", type=int, default=32)
+
+    # Save
+    parser.add_argument("--save_path", type=str, default='model_state.pth')
+    parser.add_argument("--dataset_path", type=str, required=True)
 
     args = parser.parse_args()
     return args

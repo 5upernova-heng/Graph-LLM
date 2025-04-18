@@ -35,5 +35,11 @@ def load_textual_bgm():
     return dataset, split, edge_index
 
 
+def load_textual_net(dataset_path):
+    dataset = datasets.load_from_disk(dataset_path)
+    split = pickle.load(open(f"{dataset_path}/split.pkl", 'rb'))
+    edge_index = pickle.load(open(f"{dataset_path}/edge_index.pkl", 'rb'))
+    return dataset, split, edge_index
+
 
 

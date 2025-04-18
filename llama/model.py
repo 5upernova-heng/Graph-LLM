@@ -13,7 +13,13 @@ from .model_utils import *
 from .grit import *
 from typing import List, Optional, Tuple, Union
 from torch_geometric.nn.pool import global_max_pool, global_mean_pool
+from itertools import groupby
+from transformers import LlamaTokenizer
 
+model_path = "/home/jxh/jzt/models/Llama-7b"
+tokenizer = LlamaTokenizer.from_pretrained(model_path)
+tokenizer.pad_token_id = 0
+tokenizer.padding_side = 'left'
 
 @dataclass
 class ModelArgs:
@@ -364,7 +370,7 @@ class Transformer(nn.Module):
 
 
 
-    def forward(self, input_ids, labels, node_ids, attention_mask=None):
+    def forward(self, input_ids, labels, node_ids, attention_mask=None, net_ids=None):
         _bsz, seqlen = input_ids.shape
         past_key_values_length = self.adapter_len
 
@@ -414,6 +420,46 @@ class Transformer(nn.Module):
         shift_labels = shift_labels.to(shift_logits.device)
 
         c_loss = self.criterion(shift_logits, shift_labels)
+
+        # cost debug部分
+        mask = shift_labels != -100
+        filtered_labels = shift_labels[mask]
+        
+        predicted_tokens = torch.argmax(shift_logits, dim=1)
+        predicted_tokens = predicted_tokens[mask]
+        
+        pre = tokenizer.batch_decode(predicted_tokens)
+        x = tokenizer.batch_decode(filtered_labels)
+        
+        eval_pred = [item.split('</s>')[0] for item in pre]
+        eval_pred = [item.split('\n\n###\n\n ')[-1] for item in eval_pred]
+        
+        eval_label = [item.split('</s>')[0] for item in x]
+        eval_label = [item.split('\n\n###\n\n ')[-1] for item in eval_label]
+        
+        pred_strings = [''.join(group) for k, group in groupby(eval_pred, key=lambda x: x.isdigit()) if k]
+        label_strings = [''.join(group) for k, group in groupby(eval_label, key=lambda x: x.isdigit()) if k]
+
+        val_acc = 0
+
+        # 将字符串转换为整数列表
+        # eval_pred = [int(num) for num in pred_strings]
+        # eval_label = [int(num) for num in label_strings]
+        
+        # common_elements = set(eval_pred) & set(eval_label)
+        # val_acc = len(common_elements) / len(eval_label)
+
+        input_strings = tokenizer.batch_decode(input_ids)
+        input_strings = [item.split('\n\n###\n\n ')[0] for item in input_strings]
+        input_strings = [item.split('<s>')[-1] for item in input_strings]
+        input_strings = [item.strip() for item in input_strings]
+
+        if net_ids is not None:
+            print('Net_ids---{}'.format(net_ids.tolist()))
+            print('query---{}'.format(input_strings))
+        
+        print('Pre---{}'.format(''.join(eval_pred)))
+        print('label---{}'.format(''.join(eval_label)))
 
         return c_loss
 

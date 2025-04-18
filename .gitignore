@@ -1,0 +1,8 @@
+*.txt
+Llama-2-7b-hf
+LLaMA-7B-2
+dataset/
+__pycache__/
+.vscode/
+wandb/
+results/
