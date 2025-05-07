@@ -47,6 +47,7 @@ class ModelArgs:
     lora_dropout: float = 0.05
     rrwp: int = 8
 
+    graph_size: int = 14
 
     n_decoder_layers: int = 2
     n_mp_layers: int = 2
@@ -324,6 +325,7 @@ class Transformer(nn.Module):
         self.adapter_len, self.adapter_layer = params.adapter_len, params.adapter_layer
         self.rrwp = params.rrwp
         self.criterion = torch.nn.CrossEntropyLoss(ignore_index=-100)
+        self.graph_size = params.graph_size
 
         self.register_buffer('input_ids', input_ids)
         self.register_buffer('input_attention_mask', input_attention_mask)
@@ -461,7 +463,7 @@ class Transformer(nn.Module):
         print('Pre---{}'.format(''.join(eval_pred)))
         print('label---{}'.format(''.join(eval_label)))
 
-        return c_loss
+        return c_loss, val_acc
 
 
     def transformer_forward(self, input_embeds, freqs_cis, attention_mask, adapter, freqs_cis_prefix=None,
@@ -554,11 +556,11 @@ class Transformer(nn.Module):
         if self.adapter_len * self.adapter_layer > 0:
             if self.params.task_level == 'graph':
                 subset, edge_index_sub, mapping, batch = batch_subgraph_graph_level(self.edge_index, node_ids,
-                                                                        num_nodes=self.input_ids.shape[0],)
+                                                                        num_nodes=self.input_ids.shape[0],graph_size=self.graph_size)
 
             elif self.params.task_level == 'pair':
                 subset, edge_index_sub, mapping, batch = batch_subgraph_pair_level(self.edge_index, node_ids,
-                                                                        num_nodes=self.input_ids.shape[0],)
+                                                                        num_nodes=self.input_ids.shape[0],graph_size=self.graph_size)
 
             else:
                 subset, edge_index_sub, mapping, batch = batch_subgraph(self.edge_index, node_ids,

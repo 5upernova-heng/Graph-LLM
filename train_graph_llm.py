@@ -118,6 +118,7 @@ def main(args, SEED):
                                       n_decoder_layers=args.n_decoder_layers,
                                       adapter_n_heads=args.adapter_n_heads,
                                       task_level=task_level[args.dataset],
+                                      graph_size=args.graph_size,
                                       **params)
 
 
@@ -185,7 +186,7 @@ def main(args, SEED):
 
             with accelerator.accumulate(model):
                 optimizer.zero_grad()
-                loss = model(**batch)
+                loss, temp_acc = model(**batch)
                 accelerator.backward(loss)
 
                 accelerator.clip_grad_norm_(optimizer.param_groups[0]['params'], 0.1)
@@ -224,7 +225,7 @@ def main(args, SEED):
 
         with torch.no_grad():
             for step, batch in enumerate(val_loader):
-                loss = model(**batch)
+                loss, temp_acc = model(**batch)
                 val_loss += loss.item()
 
             accelerator.print(f"Epoch: {epoch}|{args.num_epochs}: Val Loss: {val_loss / len(val_loader)}")
@@ -283,7 +284,7 @@ def main(args, SEED):
     # Step 5. Evaluating
 
 
-    test_loader = accelerator.prepare(model, test_loader)
+    model, test_loader = accelerator.prepare(model, test_loader)
 
     model.eval()
     val_loss = 0.

@@ -113,7 +113,7 @@ def prepare_decoder_attention_mask(attention_mask, input_shape, inputs_embeds, p
 def batch_subgraph_graph_level(edge_index,
                                node_ids,
                                num_nodes,
-                               graph_size=35,
+                               graph_size,
                                ):
 
     subset_list, edge_index_sub_list, mapping_list, batch_list = [], [], [], []
@@ -161,7 +161,7 @@ def batch_subgraph_graph_level(edge_index,
 def batch_subgraph_pair_level(edge_index,
                                node_ids,
                                num_nodes,
-                               graph_size=20,
+                               graph_size,
                                ):
 
     subset_list, edge_index_sub_list, mapping_list, batch_list = [], [], [], []

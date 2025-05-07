@@ -91,6 +91,7 @@ def parse_args_llama():
     # Model Training
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--grad_steps", type=int, default=2)
+    parser.add_argument("--graph_size", type=int, required=True)
 
 
     # Learning Rate Scheduler
@@ -103,7 +104,7 @@ def parse_args_llama():
     parser.add_argument("--rrwp", type=int, default=8)
 
     # Inference
-    parser.add_argument("--eval_batch_size", type=int, default=32)
+    parser.add_argument("--eval_batch_size", type=int, default=1)
 
     # Save
     parser.add_argument("--save_path", type=str, default='model_state.pth')
