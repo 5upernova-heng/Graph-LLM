@@ -36,10 +36,11 @@ def load_textual_bgm():
 
 
 def load_textual_net(dataset_path):
-    dataset = datasets.load_from_disk(dataset_path)
+    train_dataset = datasets.load_from_disk(f'{dataset_path}/train')
+    config_dataset = datasets.load_from_disk(f'{dataset_path}/config')
     split = pickle.load(open(f"{dataset_path}/split.pkl", 'rb'))
     edge_index = pickle.load(open(f"{dataset_path}/edge_index.pkl", 'rb'))
-    return dataset, split, edge_index
+    return train_dataset, config_dataset, split, edge_index
 
 
 

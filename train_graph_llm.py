@@ -46,41 +46,35 @@ def main(args, SEED):
         tokenizer.pad_token_id = 0
         tokenizer.padding_side = 'left'
 
-        dataset, split, edge_index = load_dataset[args.dataset](args.dataset_path)
+        train_split, config_split, split, edge_index = load_dataset[args.dataset](args.dataset_path)
 
-        original_dataset = dataset.map(
+        original_dataset = config_split.map(
             preprocess_original_dataset[args.dataset](tokenizer=tokenizer, max_length=original_len[args.dataset]),
             batched=True,
             batch_size=None,
-            remove_columns=[i for i in dataset.column_names if i not in ['node_ids']],
             keep_in_memory=True,
             writer_batch_size=10000,
             num_proc=16,
         ).with_format("torch")
 
-        clm_dataset_train = dataset.map(
+        clm_dataset_train = train_split.map(
             preprocess_train_dataset[args.dataset](tokenizer=tokenizer, max_length=instruction_len[args.dataset]),
             batched=True,
             batch_size=None,
-            remove_columns=[i for i in dataset.column_names if i not in ['node_ids']],
             keep_in_memory=True,
             writer_batch_size=10000,
             num_proc=16,
         ).with_format("torch")
 
 
-        clm_dataset_test = dataset.map(
+        clm_dataset_test = train_split.map(
             preprocess_test_dataset[args.dataset](tokenizer=tokenizer, max_length=instruction_len[args.dataset]),
             batched=True,
             batch_size=None,
-            remove_columns=[i for i in dataset.column_names if i not in ['node_ids', 'label', 'text_label']],
             keep_in_memory=True,
             writer_batch_size=10000,
             num_proc=16,
         ).with_format("torch")
-
-
-
 
     accelerator.wait_for_everyone()
 

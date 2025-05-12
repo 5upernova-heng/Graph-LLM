@@ -29,53 +29,49 @@ os.environ["WANDB_DISABLED"] = "true"
 
 def main(args, SEED):
     group = f"{args.dataset}"
-    accelerator.init_trackers(
-        project_name=f"{args.project}",
-        init_kwargs={
-            "wandb": {
-                "tags": [args.dataset, args.model_name],
-                "group": group,
-                "name": f"{args.dataset}_EXP{SEED}",
-                "config": args,
-            }
-        },
-    )
+    accelerator.init_trackers(project_name=f"{args.project}",
+                              init_kwargs={"wandb":
+                                               {"tags": [args.dataset, args.model_name],
+                                                "group": group,
+                                                "name": f"{args.dataset}_EXP{SEED}",
+                                                "config": args}
+                                           },
+                              )
 
     seed_everything(seed=SEED)
     accelerator.print(args)
 
+
     with accelerator.main_process_first():
-        tokenizer = LlamaTokenizer.from_pretrained("Llama-2-7b-hf")
+        tokenizer = LlamaTokenizer.from_pretrained('Llama-2-7b-hf')
         tokenizer.pad_token_id = 0
-        tokenizer.padding_side = "left"
+        tokenizer.padding_side = 'left'
 
-        dataset, split, edge_index = load_dataset[args.dataset](args.dataset_path)
+        train_split, config_split, split, edge_index = load_dataset[args.dataset](args.dataset_path)
 
-        original_dataset = dataset.map(
+        original_dataset = config_split.map(
             preprocess_original_dataset[args.dataset](tokenizer=tokenizer, max_length=original_len[args.dataset]),
             batched=True,
             batch_size=None,
-            remove_columns=[i for i in dataset.column_names if i not in ["node_ids"]],
             keep_in_memory=True,
             writer_batch_size=10000,
             num_proc=16,
         ).with_format("torch")
 
-        clm_dataset_train = dataset.map(
+        clm_dataset_train = train_split.map(
             preprocess_train_dataset[args.dataset](tokenizer=tokenizer, max_length=instruction_len[args.dataset]),
             batched=True,
             batch_size=None,
-            remove_columns=[i for i in dataset.column_names if i not in ["node_ids"]],
             keep_in_memory=True,
             writer_batch_size=10000,
             num_proc=16,
         ).with_format("torch")
 
-        clm_dataset_test = dataset.map(
+
+        clm_dataset_test = train_split.map(
             preprocess_test_dataset[args.dataset](tokenizer=tokenizer, max_length=instruction_len[args.dataset]),
             batched=True,
             batch_size=None,
-            remove_columns=[i for i in dataset.column_names if i not in ["node_ids", "label", "text_label"]],
             keep_in_memory=True,
             writer_batch_size=10000,
             num_proc=16,
